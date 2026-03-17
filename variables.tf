@@ -21,7 +21,42 @@ variable "tfc_organization" {
 }
 
 variable "monitor_eip" {
-  description = "모니터링 VM의 Elastic IP - OTLP 엔드포인트용 (monitor 배포 후 업데이트)"
+  description = "모니터링 VM의 Elastic IP - OTLP 엔드포인트용 (monitor 배포 후 업데이트). 비워두면 OTEL 자동 비활성화."
   type        = string
+  default     = ""
+}
+
+# ─── Cloudflare R2 ───
+variable "r2_access_key" {
+  description = "Cloudflare R2 Access Key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "r2_secret_key" {
+  description = "Cloudflare R2 Secret Key"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "r2_endpoint" {
+  description = "Cloudflare R2 endpoint (https://<account-id>.r2.cloudflarestorage.com)"
+  type        = string
+  default     = ""
+}
+
+# ─── VAPID (Web Push) ───
+variable "vapid_public_key" {
+  description = "VAPID public key for web push notifications"
+  type        = string
+  default     = ""
+}
+
+variable "vapid_private_key" {
+  description = "VAPID private key for web push notifications"
+  type        = string
+  sensitive   = true
   default     = ""
 }

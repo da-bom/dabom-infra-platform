@@ -43,6 +43,22 @@ module "parameter_store" {
   redis_endpoint         = module.elasticache.endpoint
   msk_bootstrap_brokers  = module.msk.bootstrap_brokers
   monitor_eip            = var.monitor_eip
+  r2_access_key          = var.r2_access_key
+  r2_secret_key          = var.r2_secret_key
+  r2_endpoint            = var.r2_endpoint
+  vapid_public_key       = var.vapid_public_key
+  vapid_private_key      = var.vapid_private_key
+}
+
+# monitor_eip가 비어있으면 OTEL 비활성화 (http://:4318 버그 방지)
+locals {
+  otel_env_vars = var.monitor_eip != "" ? [
+    { name = "OTEL_TRACING_ENABLED",        value = "true" },
+    { name = "OTEL_SAMPLING_PROBABILITY",   value = "1.0" },
+    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://${var.monitor_eip}:4318/v1/traces" },
+  ] : [
+    { name = "OTEL_TRACING_ENABLED", value = "false" },
+  ]
 }
 
 # =============================================================================
@@ -93,7 +109,7 @@ module "ecs_service_api_core" {
   health_check_path       = "/actuator/health"
   service_discovery_arn   = module.service_discovery.service_arns["api-core"]
 
-  environment_variables = [
+  environment_variables = concat([
     { name = "SPRING_PROFILES_ACTIVE",                  value = "prod" },
     { name = "SERVER_PORT",                             value = "8080" },
     { name = "DATABASE_URL",                            value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
@@ -107,15 +123,12 @@ module "ecs_service_api_core" {
     { name = "KAFKA_POLICY_DEDUP_TTL_SECONDS",          value = "3600" },
     { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS",   value = "600" },
     { name = "FRONTEND_URL",                            value = "https://www.dabom.site,https://admin.dabom.site" },
-    { name = "OTEL_TRACING_ENABLED",                    value = "true" },
-    { name = "OTEL_SAMPLING_PROBABILITY",               value = "1.0" },
-    { name = "OTEL_EXPORTER_OTLP_ENDPOINT",             value = "http://${var.monitor_eip}:4318/v1/traces" },
     { name = "JWT_ACCESS_TOKEN_EXPIRES_IN",             value = "720000000" },
     { name = "JWT_REFRESH_TOKEN_EXPIRES_IN",            value = "1209600000" },
-    { name = "R2_ENDPOINT",                             value = "https://placeholder.r2.cloudflarestorage.com" },
+    { name = "R2_ENDPOINT",                             value = var.r2_endpoint },
     { name = "R2_BUCKET",                               value = "dabom-storage" },
     { name = "R2_CDN_BASE_URL",                         value = "https://cdn.dabom.site" },
-  ]
+  ], local.otel_env_vars)
 
   secrets = [
     { name = "DATABASE_PASSWORD",      valueFrom = module.parameter_store.parameter_arns["db_password"] },
@@ -146,7 +159,7 @@ module "ecs_service_processor_usage" {
   enable_load_balancer    = false
   service_discovery_arn   = module.service_discovery.service_arns["processor-usage"]
 
-  environment_variables = [
+  environment_variables = concat([
     { name = "SPRING_PROFILES_ACTIVE",                value = "prod" },
     { name = "SERVER_PORT",                           value = "8080" },
     { name = "DATABASE_URL",                          value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
@@ -158,10 +171,7 @@ module "ecs_service_processor_usage" {
     { name = "KAFKA_CONSUMER_GROUP_ID",               value = "dabom-processor-usage" },
     { name = "KAFKA_AUTO_OFFSET_RESET",               value = "earliest" },
     { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS", value = "600" },
-    { name = "OTEL_TRACING_ENABLED",                  value = "true" },
-    { name = "OTEL_SAMPLING_PROBABILITY",             value = "1.0" },
-    { name = "OTEL_EXPORTER_OTLP_ENDPOINT",           value = "http://${var.monitor_eip}:4318/v1/traces" },
-  ]
+  ], local.otel_env_vars)
 
   secrets = [
     { name = "DATABASE_PASSWORD", valueFrom = module.parameter_store.parameter_arns["db_password"] },
@@ -191,7 +201,7 @@ module "ecs_service_api_notification" {
   health_check_path       = "/actuator/health"
   service_discovery_arn   = module.service_discovery.service_arns["api-notification"]
 
-  environment_variables = [
+  environment_variables = concat([
     { name = "SPRING_PROFILES_ACTIVE",      value = "prod" },
     { name = "SERVER_PORT",                 value = "8080" },
     { name = "DATABASE_URL",                value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
@@ -203,10 +213,7 @@ module "ecs_service_api_notification" {
     { name = "KAFKA_CONSUMER_GROUP_ID",     value = "dabom-api-notification" },
     { name = "KAFKA_AUTO_OFFSET_RESET",     value = "earliest" },
     { name = "FRONTEND_URL",                value = "https://www.dabom.site,https://admin.dabom.site" },
-    { name = "OTEL_TRACING_ENABLED",        value = "true" },
-    { name = "OTEL_SAMPLING_PROBABILITY",   value = "1.0" },
-    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://${var.monitor_eip}:4318/v1/traces" },
-  ]
+  ], local.otel_env_vars)
 
   secrets = [
     { name = "DATABASE_PASSWORD", valueFrom = module.parameter_store.parameter_arns["db_password"] },
@@ -235,7 +242,7 @@ module "ecs_service_batch_core" {
   enable_load_balancer    = false
   service_discovery_arn   = module.service_discovery.service_arns["batch-core"]
 
-  environment_variables = [
+  environment_variables = concat([
     { name = "SPRING_PROFILES_ACTIVE",      value = "prod" },
     { name = "SERVER_PORT",                 value = "8080" },
     { name = "DATABASE_URL",                value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
@@ -244,10 +251,7 @@ module "ecs_service_batch_core" {
     { name = "REDIS_HOST",                  value = module.elasticache.endpoint },
     { name = "REDIS_PORT",                  value = "6379" },
     { name = "KAFKA_BOOTSTRAP_SERVERS",     value = module.msk.bootstrap_brokers },
-    { name = "OTEL_TRACING_ENABLED",        value = "true" },
-    { name = "OTEL_SAMPLING_PROBABILITY",   value = "1.0" },
-    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://${var.monitor_eip}:4318/v1/traces" },
-  ]
+  ], local.otel_env_vars)
 
   secrets = [
     { name = "DATABASE_PASSWORD", valueFrom = module.parameter_store.parameter_arns["db_password"] },

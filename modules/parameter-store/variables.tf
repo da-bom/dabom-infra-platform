@@ -23,3 +23,31 @@ variable "monitor_eip" {
   description = "모니터링 VM EIP - OTLP 엔드포인트 구성"
   type        = string
 }
+
+variable "r2_access_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "r2_secret_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "r2_endpoint" {
+  type    = string
+  default = ""
+}
+
+variable "vapid_public_key" {
+  type    = string
+  default = ""
+}
+
+variable "vapid_private_key" {
+  type      = string
+  sensitive = true
+  default   = ""
+}

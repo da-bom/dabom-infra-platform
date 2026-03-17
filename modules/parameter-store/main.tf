@@ -46,31 +46,19 @@ resource "aws_ssm_parameter" "jwt_secret_key" {
 resource "aws_ssm_parameter" "r2_access_key" {
   name  = "/dabom/r2/access-key"
   type  = "SecureString"
-  value = "changeme"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
+  value = var.r2_access_key
 }
 
 resource "aws_ssm_parameter" "r2_secret_key" {
   name  = "/dabom/r2/secret-key"
   type  = "SecureString"
-  value = "changeme"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
+  value = var.r2_secret_key
 }
 
 resource "aws_ssm_parameter" "vapid_private_key" {
   name  = "/dabom/vapid/private-key"
   type  = "SecureString"
-  value = "changeme"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
+  value = var.vapid_private_key
 }
 
 # =============================================================================
@@ -200,11 +188,7 @@ resource "aws_ssm_parameter" "jwt_refresh_expires" {
 resource "aws_ssm_parameter" "r2_endpoint" {
   name  = "/dabom/r2/endpoint"
   type  = "String"
-  value = "https://placeholder.r2.cloudflarestorage.com"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
+  value = var.r2_endpoint
 }
 
 resource "aws_ssm_parameter" "r2_bucket" {
@@ -222,9 +206,5 @@ resource "aws_ssm_parameter" "r2_cdn_base_url" {
 resource "aws_ssm_parameter" "vapid_public_key" {
   name  = "/dabom/vapid/public-key"
   type  = "String"
-  value = "changeme"
-
-  lifecycle {
-    ignore_changes = [value]
-  }
+  value = var.vapid_public_key
 }
