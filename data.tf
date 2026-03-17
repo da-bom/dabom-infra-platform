@@ -25,5 +25,9 @@ locals {
   msk_sg_id                   = data.terraform_remote_state.bootstrap.outputs.msk_sg_id
   ecs_task_execution_role_arn = data.terraform_remote_state.bootstrap.outputs.ecs_task_execution_role_arn
   ecs_task_role_arns          = data.terraform_remote_state.bootstrap.outputs.ecs_task_role_arns
-  ecr_repository_urls         = data.terraform_remote_state.bootstrap.outputs.ecr_repository_urls
+  # ECR output 키가 "dabom/api-core" 형태이므로 "api-core"로 변환
+  ecr_repository_urls = {
+    for name, url in data.terraform_remote_state.bootstrap.outputs.ecr_repository_urls :
+    trimprefix(name, "dabom/") => url
+  }
 }
