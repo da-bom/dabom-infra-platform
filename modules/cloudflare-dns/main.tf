@@ -14,7 +14,7 @@ terraform {
 resource "cloudflare_record" "api" {
   zone_id = var.zone_id
   name    = "api"
-  value   = var.alb_api_dns_name
+  content = var.alb_api_dns_name
   type    = "CNAME"
   proxied = true
 }
@@ -23,7 +23,7 @@ resource "cloudflare_record" "api" {
 resource "cloudflare_record" "noti" {
   zone_id = var.zone_id
   name    = "noti"
-  value   = var.alb_noti_dns_name
+  content = var.alb_noti_dns_name
   type    = "CNAME"
   proxied = true
 }

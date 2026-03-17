@@ -5,7 +5,7 @@ resource "aws_appautoscaling_target" "this" {
 
   service_namespace  = "ecs"
   scalable_dimension = "ecs:service:DesiredCount"
-  resource_id        = "service/${var.cluster_name}/${var.cluster_name}-${each.key}"
+  resource_id        = "service/${var.cluster_name}/${var.project}-${each.key}"
 
   min_capacity = each.value.min
   max_capacity = each.value.max
@@ -15,7 +15,7 @@ resource "aws_appautoscaling_target" "this" {
 resource "aws_appautoscaling_policy" "cpu" {
   for_each = var.services
 
-  name               = "${var.cluster_name}-${each.key}-cpu-scaling"
+  name               = "${var.project}-${each.key}-cpu-scaling"
   policy_type        = "TargetTrackingScaling"
   service_namespace  = aws_appautoscaling_target.this[each.key].service_namespace
   scalable_dimension = aws_appautoscaling_target.this[each.key].scalable_dimension

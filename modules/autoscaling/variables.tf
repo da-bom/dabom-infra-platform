@@ -1,5 +1,10 @@
 variable "cluster_name" {
-  description = "ECS 클러스터 이름 - 리소스 ID 구성에 사용"
+  description = "ECS cluster name"
+  type        = string
+}
+
+variable "project" {
+  description = "Project name prefix for ECS service names"
   type        = string
 }
 

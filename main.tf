@@ -261,6 +261,7 @@ module "ecs_service_batch_core" {
 # =============================================================================
 module "autoscaling" {
   source       = "./modules/autoscaling"
+  project      = var.project
   cluster_name = module.ecs_cluster.cluster_name
 
   services = {
