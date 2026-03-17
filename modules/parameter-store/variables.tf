@@ -51,3 +51,8 @@ variable "vapid_private_key" {
   sensitive = true
   default   = ""
 }
+
+variable "frontend_url" {
+  type    = string
+  default = "https://www.dabom.site,https://admin.dabom.site"
+}

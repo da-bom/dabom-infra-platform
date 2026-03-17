@@ -26,6 +26,13 @@ variable "monitor_eip" {
   default     = ""
 }
 
+# ─── CORS ───
+variable "frontend_url" {
+  description = "CORS allowed origins (comma-separated)"
+  type        = string
+  default     = "https://www.dabom.site,https://admin.dabom.site"
+}
+
 # ─── Cloudflare R2 ───
 variable "r2_access_key" {
   description = "Cloudflare R2 Access Key"

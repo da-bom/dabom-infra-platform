@@ -152,7 +152,7 @@ resource "aws_ssm_parameter" "kafka_usage_persist_dedup_ttl" {
 resource "aws_ssm_parameter" "cors_frontend_url" {
   name  = "/dabom/cors/frontend-url"
   type  = "String"
-  value = "https://www.dabom.site,https://admin.dabom.site"
+  value = var.frontend_url
 }
 
 resource "aws_ssm_parameter" "otel_enabled" {

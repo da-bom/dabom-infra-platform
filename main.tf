@@ -48,6 +48,7 @@ module "parameter_store" {
   r2_endpoint            = var.r2_endpoint
   vapid_public_key       = var.vapid_public_key
   vapid_private_key      = var.vapid_private_key
+  frontend_url           = var.frontend_url
 }
 
 # monitor_eip가 비어있으면 OTEL 비활성화 (http://:4318 버그 방지)
@@ -122,7 +123,7 @@ module "ecs_service_api_core" {
     { name = "KAFKA_AUTO_OFFSET_RESET",                 value = "earliest" },
     { name = "KAFKA_POLICY_DEDUP_TTL_SECONDS",          value = "3600" },
     { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS",   value = "600" },
-    { name = "FRONTEND_URL",                            value = "https://www.dabom.site,https://admin.dabom.site" },
+    { name = "FRONTEND_URL",                            value = var.frontend_url },
     { name = "JWT_ACCESS_TOKEN_EXPIRES_IN",             value = "720000000" },
     { name = "JWT_REFRESH_TOKEN_EXPIRES_IN",            value = "1209600000" },
     { name = "R2_ENDPOINT",                             value = var.r2_endpoint },
