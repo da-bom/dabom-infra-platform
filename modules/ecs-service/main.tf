@@ -86,8 +86,9 @@ resource "aws_ecs_service" "this" {
     }
   }
 
-  # 태스크 정의 변경 시 서비스 업데이트 허용
+  # desired_count만 ignore: 오토스케일링이 조정한 값을 Terraform이 되돌리지 않도록
+  # task_definition은 ignore하지 않음: 환경변수 변경 시 자동 롤링 업데이트
   lifecycle {
-    ignore_changes = [task_definition, desired_count]
+    ignore_changes = [desired_count]
   }
 }
