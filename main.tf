@@ -67,11 +67,12 @@ locals {
 # API ALB: 일반 REST, Noti ALB: SSE 장기 연결
 # =============================================================================
 module "alb" {
-  source            = "./modules/alb"
-  project           = var.project
-  vpc_id            = local.vpc_id
-  public_subnet_ids = local.public_subnet_ids
-  alb_sg_id         = local.alb_sg_id
+  source              = "./modules/alb"
+  project             = var.project
+  vpc_id              = local.vpc_id
+  public_subnet_ids   = local.public_subnet_ids
+  alb_sg_id           = local.alb_sg_id
+  acm_certificate_arn = aws_acm_certificate_validation.wildcard.certificate_arn
 }
 
 # =============================================================================
@@ -292,6 +293,40 @@ module "autoscaling" {
     module.ecs_service_processor_usage,
     module.ecs_service_api_notification,
   ]
+}
+
+# =============================================================================
+# ACM 인증서 - *.dabom.site 와일드카드 (무료, DNS 검증)
+# =============================================================================
+resource "aws_acm_certificate" "wildcard" {
+  domain_name       = "*.dabom.site"
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+# Cloudflare에 ACM DNS 검증 레코드 생성
+resource "cloudflare_record" "acm_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.wildcard.domain_validation_options : dvo.domain_name => {
+      name  = dvo.resource_record_name
+      type  = dvo.resource_record_type
+      value = dvo.resource_record_value
+    }
+  }
+
+  zone_id = var.cloudflare_zone_id
+  name    = each.value.name
+  type    = each.value.type
+  content = each.value.value
+  proxied = false
+}
+
+# 검증 완료 대기
+resource "aws_acm_certificate_validation" "wildcard" {
+  certificate_arn = aws_acm_certificate.wildcard.arn
 }
 
 # =============================================================================

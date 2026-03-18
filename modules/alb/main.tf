@@ -32,11 +32,29 @@ resource "aws_lb_target_group" "api_core" {
   }
 }
 
-# HTTP:80 리스너 - api-core 타겟 그룹으로 포워드
+# HTTP:80 → HTTPS:443 리다이렉트
 resource "aws_lb_listener" "api_http" {
   load_balancer_arn = aws_lb.api.arn
   port              = 80
   protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+# HTTPS:443 리스너 - ACM 인증서 적용
+resource "aws_lb_listener" "api_https" {
+  load_balancer_arn = aws_lb.api.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.acm_certificate_arn
 
   default_action {
     type             = "forward"
@@ -78,11 +96,29 @@ resource "aws_lb_target_group" "api_noti" {
   }
 }
 
-# HTTP:80 리스너 - api-noti 타겟 그룹으로 포워드
+# HTTP:80 → HTTPS:443 리다이렉트
 resource "aws_lb_listener" "noti_http" {
   load_balancer_arn = aws_lb.noti.arn
   port              = 80
   protocol          = "HTTP"
+
+  default_action {
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
+  }
+}
+
+# HTTPS:443 리스너 - ACM 인증서 적용
+resource "aws_lb_listener" "noti_https" {
+  load_balancer_arn = aws_lb.noti.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.acm_certificate_arn
 
   default_action {
     type             = "forward"
