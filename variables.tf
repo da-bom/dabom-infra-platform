@@ -26,6 +26,14 @@ variable "monitor_eip" {
   default     = ""
 }
 
+# ─── Slack ───
+variable "slack_webhook_url" {
+  description = "Slack Webhook URL for batch alerts"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # ─── CORS ───
 variable "frontend_url" {
   description = "CORS allowed origins (comma-separated)"

@@ -7,6 +7,7 @@ output "parameter_arns" {
     jwt_secret_key   = aws_ssm_parameter.jwt_secret_key.arn
     r2_access_key    = aws_ssm_parameter.r2_access_key.arn
     r2_secret_key    = aws_ssm_parameter.r2_secret_key.arn
-    vapid_private_key = aws_ssm_parameter.vapid_private_key.arn
+    vapid_private_key  = aws_ssm_parameter.vapid_private_key.arn
+    slack_webhook_url  = aws_ssm_parameter.slack_webhook_url.arn
   }
 }

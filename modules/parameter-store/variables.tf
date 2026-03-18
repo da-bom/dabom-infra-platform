@@ -56,3 +56,9 @@ variable "frontend_url" {
   type    = string
   default = "https://www.dabom.site,https://admin.dabom.site"
 }
+
+variable "slack_webhook_url" {
+  type      = string
+  sensitive = true
+  default   = ""
+}

@@ -8,6 +8,9 @@ r2_endpoint    = ""  # https://<account-id>.r2.cloudflarestorage.com
 r2_access_key  = ""
 r2_secret_key  = ""
 
+# ─── Slack ───
+slack_webhook_url = ""  # Terraform Cloud Variables 권장 (Sensitive)
+
 # ─── VAPID Web Push ───
 vapid_public_key  = ""
 vapid_private_key = ""

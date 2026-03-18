@@ -49,6 +49,7 @@ module "parameter_store" {
   vapid_public_key       = var.vapid_public_key
   vapid_private_key      = var.vapid_private_key
   frontend_url           = var.frontend_url
+  slack_webhook_url      = var.slack_webhook_url
 }
 
 # monitor_eip가 비어있으면 OTEL 비활성화 (http://:4318 버그 방지)
@@ -249,20 +250,79 @@ module "ecs_service_batch_core" {
   service_discovery_arn   = module.service_discovery.service_arns["batch-core"]
 
   environment_variables = concat([
+    # --- 기본 ---
     { name = "SPRING_PROFILES_ACTIVE",      value = "prod" },
     { name = "SERVER_PORT",                 value = "8080" },
     { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "framework" },
     { name = "DATABASE_URL",                value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
-    { name = "DATABASE_NAME",               value = "app_db" },
     { name = "DATABASE_USER",               value = "app_user" },
     { name = "REDIS_HOST",                  value = module.elasticache.endpoint },
     { name = "REDIS_PORT",                  value = "6379" },
-    { name = "KAFKA_BOOTSTRAP_SERVERS",     value = module.msk.bootstrap_brokers },
+    { name = "REDIS_PASSWORD",              value = "" },
+    { name = "REDIS_SSL_ENABLED",           value = "false" },
+    # --- Kafka ---
+    { name = "KAFKA_BOOTSTRAP_SERVERS",              value = module.msk.bootstrap_brokers },
+    { name = "KAFKA_CONSUMER_GROUP_ID",              value = "dabom-batch-core" },
+    { name = "KAFKA_AUTO_OFFSET_RESET",              value = "earliest" },
+    { name = "KAFKA_POLICY_DEDUP_TTL_SECONDS",       value = "3600" },
+    { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS", value = "600" },
+    # --- Batch Global ---
+    { name = "BATCH_JOB_ENABLED",          value = "true" },
+    { name = "BATCH_RETRY_LIMIT",          value = "3" },
+    { name = "BATCH_RETRY_BACKOFF_MILLIS", value = "3000" },
+    # --- Schedule: Weekly Family Recap ---
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_ENABLED", value = "true" },
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_CRON",    value = "0 10 0 * * MON" },
+    # --- Schedule: Monthly Family Recap ---
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_ENABLED", value = "true" },
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_CRON",    value = "0 20 0 1 * *" },
+    # --- Schedule: Monthly Usage Precreate ---
+    { name = "BATCH_MONTHLY_USAGE_PRECREATE_ENABLED", value = "true" },
+    { name = "BATCH_MONTHLY_USAGE_PRECREATE_CRON",    value = "0 30 23 28-31 * *" },
+    # --- Schedule: Monthly Usage Reset ---
+    { name = "BATCH_MONTHLY_USAGE_RESET_ENABLED", value = "true" },
+    { name = "BATCH_MONTHLY_USAGE_RESET_CRON",    value = "0 1 0 1 * *" },
+    # --- Schedule: DB-Redis Reconciliation ---
+    { name = "BATCH_DB_REDIS_RECONCILIATION_ENABLED", value = "true" },
+    { name = "BATCH_DB_REDIS_RECONCILIATION_CRON",    value = "0 0 3 * * *" },
+    # --- Schedule: Usage Event Outbox ---
+    { name = "BATCH_USAGE_EVENT_OUTBOX_ENABLED",       value = "true" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_FIXED_DELAY",   value = "60000" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_INITIAL_DELAY", value = "5000" },
+    # --- Tuning: Weekly Family Recap ---
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_LOCK_TTL",     value = "PT1H" },
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_CHUNK_SIZE",   value = "1000" },
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_DB_FETCH_SIZE", value = "1000" },
+    # --- Tuning: Monthly Family Recap ---
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_LOCK_TTL",     value = "PT1H" },
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_CHUNK_SIZE",   value = "1000" },
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_DB_FETCH_SIZE", value = "1000" },
+    # --- Tuning: Monthly Usage Precreate ---
+    { name = "BATCH_MONTHLY_USAGE_PRECREATE_LOCK_TTL",     value = "PT1H" },
+    { name = "BATCH_MONTHLY_USAGE_PRECREATE_DB_FETCH_SIZE", value = "4000" },
+    # --- Tuning: Monthly Usage Reset ---
+    { name = "BATCH_MONTHLY_USAGE_RESET_LOCK_TTL",          value = "PT1H" },
+    { name = "BATCH_MONTHLY_USAGE_RESET_REDIS_CHUNK_SIZE",   value = "2000" },
+    { name = "BATCH_MONTHLY_USAGE_RESET_DB_FETCH_SIZE",      value = "4000" },
+    # --- Tuning: DB-Redis Reconciliation ---
+    { name = "BATCH_DB_REDIS_RECONCILIATION_LOCK_TTL",          value = "PT1H" },
+    { name = "BATCH_DB_REDIS_RECONCILIATION_REDIS_CHUNK_SIZE",   value = "2000" },
+    { name = "BATCH_DB_REDIS_RECONCILIATION_DB_FETCH_SIZE",      value = "4000" },
+    # --- Tuning: Usage Event Outbox ---
+    { name = "BATCH_USAGE_EVENT_OUTBOX_BATCH_SIZE",              value = "100" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_CONCURRENCY",             value = "8" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_MAX_RETRY",               value = "5" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_RETRY_INITIAL_DELAY",     value = "PT1M" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_RETRY_MAX_DELAY",         value = "PT16M" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_RETRY_ELIGIBILITY_DELAY", value = "PT1M" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_PUBLISH_TIMEOUT",         value = "PT10S" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_TOPIC",                   value = "notification" },
   ], local.otel_env_vars)
 
   secrets = [
-    { name = "DATABASE_PASSWORD", valueFrom = module.parameter_store.parameter_arns["db_password"] },
-    { name = "JWT_SECRET_KEY",    valueFrom = module.parameter_store.parameter_arns["jwt_secret_key"] },
+    { name = "DATABASE_PASSWORD",  valueFrom = module.parameter_store.parameter_arns["db_password"] },
+    { name = "JWT_SECRET_KEY",     valueFrom = module.parameter_store.parameter_arns["jwt_secret_key"] },
+    { name = "SLACK_WEBHOOK_URL",  valueFrom = module.parameter_store.parameter_arns["slack_webhook_url"] },
   ]
 }
 

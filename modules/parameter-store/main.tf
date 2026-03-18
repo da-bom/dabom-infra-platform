@@ -203,6 +203,12 @@ resource "aws_ssm_parameter" "r2_cdn_base_url" {
   value = "https://cdn.dabom.site"
 }
 
+resource "aws_ssm_parameter" "slack_webhook_url" {
+  name  = "/dabom/slack/webhook-url"
+  type  = "SecureString"
+  value = var.slack_webhook_url
+}
+
 resource "aws_ssm_parameter" "vapid_public_key" {
   name  = "/dabom/vapid/public-key"
   type  = "String"
