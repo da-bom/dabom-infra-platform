@@ -59,8 +59,9 @@ resource "aws_ecs_service" "this" {
   name            = "${var.project}-${var.service_name}"
   cluster         = var.cluster_id
   task_definition = aws_ecs_task_definition.this.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
+  desired_count          = var.desired_count
+  launch_type            = "FARGATE"
+  enable_execute_command = true
 
   # Spring Boot 기동 시간 동안 ALB health check 실패를 무시 (120초)
   health_check_grace_period_seconds = var.enable_load_balancer ? 120 : null
