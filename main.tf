@@ -217,7 +217,8 @@ module "ecs_service_api_notification" {
     { name = "KAFKA_BOOTSTRAP_SERVERS",     value = module.msk.bootstrap_brokers },
     { name = "KAFKA_CONSUMER_GROUP_ID",     value = "dabom-api-notification" },
     { name = "KAFKA_AUTO_OFFSET_RESET",     value = "earliest" },
-    { name = "FRONTEND_URL",                value = "https://www.dabom.site,https://admin.dabom.site" },
+    { name = "FRONTEND_URL",                value = var.frontend_url },
+    { name = "VAPID_PUBLIC_KEY",            value = var.vapid_public_key },
   ], local.otel_env_vars)
 
   secrets = [
