@@ -238,8 +238,8 @@ module "ecs_service_batch_core" {
   cluster_id              = module.ecs_cluster.cluster_id
   task_execution_role_arn = local.ecs_task_execution_role_arn
   task_role_arn           = local.ecs_task_role_arns["batch-core"]
-  cpu                     = 256
-  memory                  = 512
+  cpu                     = 1024
+  memory                  = 2048
   desired_count           = 1
   container_image         = "${local.ecr_repository_urls["batch-core"]}:latest"
   container_port          = 8080
@@ -267,7 +267,7 @@ module "ecs_service_batch_core" {
     { name = "KAFKA_POLICY_DEDUP_TTL_SECONDS",       value = "3600" },
     { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS", value = "600" },
     # --- Batch Global ---
-    { name = "BATCH_JOB_ENABLED",          value = "true" },
+    { name = "BATCH_JOB_ENABLED",          value = "false" },
     { name = "BATCH_RETRY_LIMIT",          value = "3" },
     { name = "BATCH_RETRY_BACKOFF_MILLIS", value = "3000" },
     # --- Schedule: Weekly Family Recap ---
