@@ -114,7 +114,7 @@ module "ecs_service_api_core" {
   environment_variables = concat([
     { name = "SPRING_PROFILES_ACTIVE",                  value = "prod" },
     { name = "SERVER_PORT",                             value = "8080" },
-    { name = "SERVER_FORWARD_HEADERS_STRATEGY",         value = "native" },
+    { name = "SERVER_FORWARD_HEADERS_STRATEGY",         value = "framework" },
     { name = "DATABASE_URL",                            value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
     { name = "DATABASE_NAME",                           value = "app_db" },
     { name = "DATABASE_USER",                           value = "app_user" },
@@ -165,7 +165,7 @@ module "ecs_service_processor_usage" {
   environment_variables = concat([
     { name = "SPRING_PROFILES_ACTIVE",                value = "prod" },
     { name = "SERVER_PORT",                           value = "8080" },
-    { name = "SERVER_FORWARD_HEADERS_STRATEGY",       value = "native" },
+    { name = "SERVER_FORWARD_HEADERS_STRATEGY",       value = "framework" },
     { name = "DATABASE_URL",                          value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
     { name = "DATABASE_NAME",                         value = "app_db" },
     { name = "DATABASE_USER",                         value = "app_user" },
@@ -208,7 +208,7 @@ module "ecs_service_api_notification" {
   environment_variables = concat([
     { name = "SPRING_PROFILES_ACTIVE",      value = "prod" },
     { name = "SERVER_PORT",                 value = "8080" },
-    { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "native" },
+    { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "framework" },
     { name = "DATABASE_URL",                value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
     { name = "DATABASE_NAME",               value = "app_db" },
     { name = "DATABASE_USER",               value = "app_user" },
@@ -251,7 +251,7 @@ module "ecs_service_batch_core" {
   environment_variables = concat([
     { name = "SPRING_PROFILES_ACTIVE",      value = "prod" },
     { name = "SERVER_PORT",                 value = "8080" },
-    { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "native" },
+    { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "framework" },
     { name = "DATABASE_URL",                value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
     { name = "DATABASE_NAME",               value = "app_db" },
     { name = "DATABASE_USER",               value = "app_user" },
