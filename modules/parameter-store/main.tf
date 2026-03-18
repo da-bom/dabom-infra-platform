@@ -155,22 +155,16 @@ resource "aws_ssm_parameter" "cors_frontend_url" {
   value = var.frontend_url
 }
 
-resource "aws_ssm_parameter" "otel_enabled" {
-  name  = "/dabom/otel/enabled"
+resource "aws_ssm_parameter" "otel_sdk_disabled" {
+  name  = "/dabom/otel/sdk-disabled"
   type  = "String"
-  value = "true"
-}
-
-resource "aws_ssm_parameter" "otel_sampling" {
-  name  = "/dabom/otel/sampling"
-  type  = "String"
-  value = "1.0"
+  value = var.monitor_eip != "" ? "false" : "true"
 }
 
 resource "aws_ssm_parameter" "otel_endpoint" {
   name  = "/dabom/otel/endpoint"
   type  = "String"
-  value = "http://${var.monitor_eip}:4318/v1/traces"
+  value = var.monitor_eip != "" ? "http://${var.monitor_eip}:4318" : ""
 }
 
 resource "aws_ssm_parameter" "jwt_access_expires" {

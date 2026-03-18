@@ -52,14 +52,39 @@ module "parameter_store" {
   slack_webhook_url      = var.slack_webhook_url
 }
 
-# monitor_eip가 비어있으면 OTEL 비활성화 (http://:4318 버그 방지)
+# 공통 secrets - Parameter Store에서 주입 (전체 서비스 공유)
 locals {
-  otel_env_vars = var.monitor_eip != "" ? [
-    { name = "OTEL_TRACING_ENABLED",        value = "true" },
-    { name = "OTEL_SAMPLING_PROBABILITY",   value = "1.0" },
-    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", value = "http://${var.monitor_eip}:4318/v1/traces" },
-  ] : [
-    { name = "OTEL_TRACING_ENABLED", value = "false" },
+  p = module.parameter_store.parameter_arns
+
+  # 모든 서비스가 공유하는 공통 secrets
+  common_secrets = [
+    { name = "DATABASE_URL",      valueFrom = local.p["db_url"] },
+    { name = "DATABASE_USER",     valueFrom = local.p["db_username"] },
+    { name = "DATABASE_PASSWORD", valueFrom = local.p["db_password"] },
+    { name = "REDIS_HOST",        valueFrom = local.p["redis_host"] },
+    { name = "REDIS_PORT",        valueFrom = local.p["redis_port"] },
+    { name = "OTEL_SDK_DISABLED",            valueFrom = local.p["otel_sdk_disabled"] },
+    { name = "OTEL_EXPORTER_OTLP_ENDPOINT", valueFrom = local.p["otel_endpoint"] },
+  ]
+
+  # Kafka를 사용하는 서비스의 공통 secrets (api-core, proc-usage, api-noti)
+  kafka_common_secrets = [
+    { name = "KAFKA_BOOTSTRAP_SERVERS",              valueFrom = local.p["kafka_bootstrap_servers"] },
+    { name = "KAFKA_AUTO_OFFSET_RESET",              valueFrom = local.p["kafka_auto_offset_reset"] },
+    { name = "KAFKA_POLICY_DEDUP_TTL_SECONDS",       valueFrom = local.p["kafka_policy_dedup_ttl"] },
+    { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS", valueFrom = local.p["kafka_usage_persist_dedup_ttl"] },
+  ]
+
+  # JWT를 사용하는 서비스의 공통 secrets (api-core, api-noti)
+  jwt_secrets = [
+    { name = "JWT_SECRET_KEY",             valueFrom = local.p["jwt_secret_key"] },
+    { name = "JWT_ACCESS_TOKEN_EXPIRES_IN", valueFrom = local.p["jwt_access_expires"] },
+    { name = "JWT_REFRESH_TOKEN_EXPIRES_IN", valueFrom = local.p["jwt_refresh_expires"] },
+  ]
+
+  # CORS를 사용하는 서비스의 공통 secrets (api-core, proc-usage, api-noti)
+  cors_secrets = [
+    { name = "FRONTEND_URL", valueFrom = local.p["frontend_url"] },
   ]
 }
 
@@ -90,7 +115,7 @@ module "service_discovery" {
 # ECR 이미지: bootstrap 레이어에서 생성된 레포지토리 사용
 # =============================================================================
 
-# api-core: REST API, ALB 연결, 서비스 디스커버리 등록
+# api-core: REST API, ALB 연결
 module "ecs_service_api_core" {
   source = "./modules/ecs-service"
 
@@ -112,38 +137,33 @@ module "ecs_service_api_core" {
   health_check_path       = "/actuator/health"
   service_discovery_arn   = module.service_discovery.service_arns["api-core"]
 
-  environment_variables = concat([
-    { name = "SPRING_PROFILES_ACTIVE",                  value = "prod" },
-    { name = "SERVER_PORT",                             value = "8080" },
-    { name = "SERVER_FORWARD_HEADERS_STRATEGY",         value = "framework" },
-    { name = "DATABASE_URL",                            value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
-    { name = "DATABASE_NAME",                           value = "app_db" },
-    { name = "DATABASE_USER",                           value = "app_user" },
-    { name = "REDIS_HOST",                              value = module.elasticache.endpoint },
-    { name = "REDIS_PORT",                              value = "6379" },
-    { name = "KAFKA_BOOTSTRAP_SERVERS",                 value = module.msk.bootstrap_brokers },
-    { name = "KAFKA_CONSUMER_GROUP_ID",                 value = "dabom-api-core" },
-    { name = "KAFKA_AUTO_OFFSET_RESET",                 value = "earliest" },
-    { name = "KAFKA_POLICY_DEDUP_TTL_SECONDS",          value = "3600" },
-    { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS",   value = "600" },
-    { name = "FRONTEND_URL",                            value = var.frontend_url },
-    { name = "JWT_ACCESS_TOKEN_EXPIRES_IN",             value = "720000000" },
-    { name = "JWT_REFRESH_TOKEN_EXPIRES_IN",            value = "1209600000" },
-    { name = "R2_ENDPOINT",                             value = var.r2_endpoint },
-    { name = "R2_BUCKET",                               value = "dabom-storage" },
-    { name = "R2_CDN_BASE_URL",                         value = "https://cdn.dabom.site" },
-  ], local.otel_env_vars)
-
-  secrets = [
-    { name = "DATABASE_PASSWORD",      valueFrom = module.parameter_store.parameter_arns["db_password"] },
-    { name = "DATABASE_ROOT_PASSWORD", valueFrom = module.parameter_store.parameter_arns["db_root_password"] },
-    { name = "JWT_SECRET_KEY",         valueFrom = module.parameter_store.parameter_arns["jwt_secret_key"] },
-    { name = "R2_ACCESS_KEY",          valueFrom = module.parameter_store.parameter_arns["r2_access_key"] },
-    { name = "R2_SECRET_KEY",          valueFrom = module.parameter_store.parameter_arns["r2_secret_key"] },
+  # 서비스 고유값만 environment에 유지
+  environment_variables = [
+    { name = "SPRING_PROFILES_ACTIVE",          value = "prod" },
+    { name = "SERVER_PORT",                     value = "8080" },
+    { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "framework" },
+    { name = "DATABASE_NAME",                   value = "app_db" },
   ]
+
+  # 공통값 + 서비스별 고유 secrets를 Parameter Store에서 주입
+  secrets = concat(
+    local.common_secrets,
+    local.kafka_common_secrets,
+    local.jwt_secrets,
+    local.cors_secrets,
+    [
+      { name = "KAFKA_CONSUMER_GROUP_ID",  valueFrom = local.p["kafka_group_id_api_core"] },
+      { name = "DATABASE_ROOT_PASSWORD",   valueFrom = local.p["db_root_password"] },
+      { name = "R2_ENDPOINT",              valueFrom = local.p["r2_endpoint"] },
+      { name = "R2_ACCESS_KEY",            valueFrom = local.p["r2_access_key"] },
+      { name = "R2_SECRET_KEY",            valueFrom = local.p["r2_secret_key"] },
+      { name = "R2_BUCKET",                valueFrom = local.p["r2_bucket"] },
+      { name = "R2_CDN_BASE_URL",          valueFrom = local.p["r2_cdn_base_url"] },
+    ]
+  )
 }
 
-# processor-usage: Kafka 소비자, ALB 없음, 높은 처리량을 위해 스케일 아웃
+# processor-usage: Kafka 소비자, ALB 없음
 module "ecs_service_processor_usage" {
   source = "./modules/ecs-service"
 
@@ -163,28 +183,23 @@ module "ecs_service_processor_usage" {
   enable_load_balancer    = false
   service_discovery_arn   = module.service_discovery.service_arns["processor-usage"]
 
-  environment_variables = concat([
-    { name = "SPRING_PROFILES_ACTIVE",                value = "prod" },
-    { name = "SERVER_PORT",                           value = "8080" },
-    { name = "SERVER_FORWARD_HEADERS_STRATEGY",       value = "framework" },
-    { name = "DATABASE_URL",                          value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
-    { name = "DATABASE_NAME",                         value = "app_db" },
-    { name = "DATABASE_USER",                         value = "app_user" },
-    { name = "REDIS_HOST",                            value = module.elasticache.endpoint },
-    { name = "REDIS_PORT",                            value = "6379" },
-    { name = "KAFKA_BOOTSTRAP_SERVERS",               value = module.msk.bootstrap_brokers },
-    { name = "KAFKA_CONSUMER_GROUP_ID",               value = "dabom-processor-usage" },
-    { name = "KAFKA_AUTO_OFFSET_RESET",               value = "earliest" },
-    { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS", value = "600" },
-  ], local.otel_env_vars)
-
-  secrets = [
-    { name = "DATABASE_PASSWORD", valueFrom = module.parameter_store.parameter_arns["db_password"] },
-    { name = "JWT_SECRET_KEY",    valueFrom = module.parameter_store.parameter_arns["jwt_secret_key"] },
+  environment_variables = [
+    { name = "SPRING_PROFILES_ACTIVE",          value = "prod" },
+    { name = "SERVER_PORT",                     value = "8080" },
+    { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "framework" },
   ]
+
+  secrets = concat(
+    local.common_secrets,
+    local.kafka_common_secrets,
+    local.cors_secrets,
+    [
+      { name = "KAFKA_CONSUMER_GROUP_ID", valueFrom = local.p["kafka_group_id_proc_usage"] },
+    ]
+  )
 }
 
-# api-notification: SSE 기반 알림 서비스, Noti ALB 연결, VAPID 키 필요
+# api-notification: SSE 기반 알림 서비스, Noti ALB 연결
 module "ecs_service_api_notification" {
   source = "./modules/ecs-service"
 
@@ -206,30 +221,27 @@ module "ecs_service_api_notification" {
   health_check_path       = "/actuator/health"
   service_discovery_arn   = module.service_discovery.service_arns["api-notification"]
 
-  environment_variables = concat([
-    { name = "SPRING_PROFILES_ACTIVE",      value = "prod" },
-    { name = "SERVER_PORT",                 value = "8080" },
+  environment_variables = [
+    { name = "SPRING_PROFILES_ACTIVE",          value = "prod" },
+    { name = "SERVER_PORT",                     value = "8080" },
     { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "framework" },
-    { name = "DATABASE_URL",                value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
-    { name = "DATABASE_NAME",               value = "app_db" },
-    { name = "DATABASE_USER",               value = "app_user" },
-    { name = "REDIS_HOST",                  value = module.elasticache.endpoint },
-    { name = "REDIS_PORT",                  value = "6379" },
-    { name = "KAFKA_BOOTSTRAP_SERVERS",     value = module.msk.bootstrap_brokers },
-    { name = "KAFKA_CONSUMER_GROUP_ID",     value = "dabom-api-notification" },
-    { name = "KAFKA_AUTO_OFFSET_RESET",     value = "earliest" },
-    { name = "FRONTEND_URL",                value = var.frontend_url },
-    { name = "VAPID_PUBLIC_KEY",            value = var.vapid_public_key },
-  ], local.otel_env_vars)
-
-  secrets = [
-    { name = "DATABASE_PASSWORD", valueFrom = module.parameter_store.parameter_arns["db_password"] },
-    { name = "JWT_SECRET_KEY",    valueFrom = module.parameter_store.parameter_arns["jwt_secret_key"] },
-    { name = "VAPID_PRIVATE_KEY", valueFrom = module.parameter_store.parameter_arns["vapid_private_key"] },
+    { name = "DATABASE_NAME",                   value = "app_db" },
   ]
+
+  secrets = concat(
+    local.common_secrets,
+    local.kafka_common_secrets,
+    local.jwt_secrets,
+    local.cors_secrets,
+    [
+      { name = "KAFKA_CONSUMER_GROUP_ID", valueFrom = local.p["kafka_group_id_api_noti"] },
+      { name = "VAPID_PUBLIC_KEY",        valueFrom = local.p["vapid_public_key"] },
+      { name = "VAPID_PRIVATE_KEY",       valueFrom = local.p["vapid_private_key"] },
+    ]
+  )
 }
 
-# batch-core: 배치 작업 서비스, ALB/오토스케일링 없음, Spring Batch + @Scheduled 내장
+# batch-core: Spring Batch + @Scheduled 내장, ALB/오토스케일링 없음
 module "ecs_service_batch_core" {
   source = "./modules/ecs-service"
 
@@ -249,81 +261,62 @@ module "ecs_service_batch_core" {
   enable_load_balancer    = false
   service_discovery_arn   = module.service_discovery.service_arns["batch-core"]
 
-  environment_variables = concat([
-    # --- 기본 ---
-    { name = "SPRING_PROFILES_ACTIVE",      value = "prod" },
-    { name = "SERVER_PORT",                 value = "8080" },
-    { name = "SERVER_FORWARD_HEADERS_STRATEGY", value = "framework" },
-    { name = "DATABASE_URL",                value = "jdbc:mysql://${module.rds.address}:${module.rds.port}/app_db?serverTimezone=Asia/Seoul&characterEncoding=UTF-8" },
-    { name = "DATABASE_USER",               value = "app_user" },
-    { name = "REDIS_HOST",                  value = module.elasticache.endpoint },
-    { name = "REDIS_PORT",                  value = "6379" },
-    { name = "REDIS_PASSWORD",              value = "" },
-    { name = "REDIS_SSL_ENABLED",           value = "false" },
-    # --- Kafka ---
-    { name = "KAFKA_BOOTSTRAP_SERVERS",              value = module.msk.bootstrap_brokers },
-    { name = "KAFKA_CONSUMER_GROUP_ID",              value = "dabom-batch-core" },
-    { name = "KAFKA_AUTO_OFFSET_RESET",              value = "earliest" },
-    { name = "KAFKA_POLICY_DEDUP_TTL_SECONDS",       value = "3600" },
-    { name = "KAFKA_USAGE_PERSIST_DEDUP_TTL_SECONDS", value = "600" },
+  # batch-core 고유값 (BATCH_* 스케줄/튜닝 + Redis 추가설정)
+  environment_variables = [
+    { name = "SPRING_PROFILES_ACTIVE",  value = "prod" },
+    { name = "REDIS_PASSWORD",          value = "" },
+    { name = "REDIS_SSL_ENABLED",       value = "false" },
     # --- Batch Global ---
     { name = "BATCH_JOB_ENABLED",          value = "false" },
     { name = "BATCH_RETRY_LIMIT",          value = "3" },
     { name = "BATCH_RETRY_BACKOFF_MILLIS", value = "3000" },
-    # --- Schedule: Weekly Family Recap ---
-    { name = "BATCH_WEEKLY_FAMILY_RECAP_ENABLED", value = "true" },
-    { name = "BATCH_WEEKLY_FAMILY_RECAP_CRON",    value = "0 10 0 * * MON" },
-    # --- Schedule: Monthly Family Recap ---
-    { name = "BATCH_MONTHLY_FAMILY_RECAP_ENABLED", value = "true" },
-    { name = "BATCH_MONTHLY_FAMILY_RECAP_CRON",    value = "0 20 0 1 * *" },
-    # --- Schedule: Monthly Usage Precreate ---
-    { name = "BATCH_MONTHLY_USAGE_PRECREATE_ENABLED", value = "true" },
-    { name = "BATCH_MONTHLY_USAGE_PRECREATE_CRON",    value = "0 30 23 28-31 * *" },
-    # --- Schedule: Monthly Usage Reset ---
-    { name = "BATCH_MONTHLY_USAGE_RESET_ENABLED", value = "true" },
-    { name = "BATCH_MONTHLY_USAGE_RESET_CRON",    value = "0 1 0 1 * *" },
-    # --- Schedule: DB-Redis Reconciliation ---
-    { name = "BATCH_DB_REDIS_RECONCILIATION_ENABLED", value = "true" },
-    { name = "BATCH_DB_REDIS_RECONCILIATION_CRON",    value = "0 0 3 * * *" },
-    # --- Schedule: Usage Event Outbox ---
-    { name = "BATCH_USAGE_EVENT_OUTBOX_ENABLED",       value = "true" },
-    { name = "BATCH_USAGE_EVENT_OUTBOX_FIXED_DELAY",   value = "60000" },
-    { name = "BATCH_USAGE_EVENT_OUTBOX_INITIAL_DELAY", value = "5000" },
-    # --- Tuning: Weekly Family Recap ---
-    { name = "BATCH_WEEKLY_FAMILY_RECAP_LOCK_TTL",     value = "PT1H" },
-    { name = "BATCH_WEEKLY_FAMILY_RECAP_CHUNK_SIZE",   value = "1000" },
-    { name = "BATCH_WEEKLY_FAMILY_RECAP_DB_FETCH_SIZE", value = "1000" },
-    # --- Tuning: Monthly Family Recap ---
-    { name = "BATCH_MONTHLY_FAMILY_RECAP_LOCK_TTL",     value = "PT1H" },
-    { name = "BATCH_MONTHLY_FAMILY_RECAP_CHUNK_SIZE",   value = "1000" },
-    { name = "BATCH_MONTHLY_FAMILY_RECAP_DB_FETCH_SIZE", value = "1000" },
-    # --- Tuning: Monthly Usage Precreate ---
-    { name = "BATCH_MONTHLY_USAGE_PRECREATE_LOCK_TTL",     value = "PT1H" },
-    { name = "BATCH_MONTHLY_USAGE_PRECREATE_DB_FETCH_SIZE", value = "4000" },
-    # --- Tuning: Monthly Usage Reset ---
-    { name = "BATCH_MONTHLY_USAGE_RESET_LOCK_TTL",          value = "PT1H" },
-    { name = "BATCH_MONTHLY_USAGE_RESET_REDIS_CHUNK_SIZE",   value = "2000" },
-    { name = "BATCH_MONTHLY_USAGE_RESET_DB_FETCH_SIZE",      value = "4000" },
-    # --- Tuning: DB-Redis Reconciliation ---
+    # --- Schedule ---
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_ENABLED",        value = "true" },
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_CRON",           value = "0 10 0 * * MON" },
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_ENABLED",       value = "true" },
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_CRON",          value = "0 20 0 1 * *" },
+    { name = "BATCH_MONTHLY_USAGE_PRECREATE_ENABLED",    value = "true" },
+    { name = "BATCH_MONTHLY_USAGE_PRECREATE_CRON",       value = "0 30 23 28-31 * *" },
+    { name = "BATCH_MONTHLY_USAGE_RESET_ENABLED",        value = "true" },
+    { name = "BATCH_MONTHLY_USAGE_RESET_CRON",           value = "0 1 0 1 * *" },
+    { name = "BATCH_DB_REDIS_RECONCILIATION_ENABLED",    value = "true" },
+    { name = "BATCH_DB_REDIS_RECONCILIATION_CRON",       value = "0 0 3 * * *" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_ENABLED",         value = "true" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_FIXED_DELAY",     value = "60000" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_INITIAL_DELAY",   value = "5000" },
+    # --- Tuning ---
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_LOCK_TTL",              value = "PT1H" },
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_CHUNK_SIZE",            value = "1000" },
+    { name = "BATCH_WEEKLY_FAMILY_RECAP_DB_FETCH_SIZE",         value = "1000" },
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_LOCK_TTL",             value = "PT1H" },
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_CHUNK_SIZE",           value = "1000" },
+    { name = "BATCH_MONTHLY_FAMILY_RECAP_DB_FETCH_SIZE",        value = "1000" },
+    { name = "BATCH_MONTHLY_USAGE_PRECREATE_LOCK_TTL",          value = "PT1H" },
+    { name = "BATCH_MONTHLY_USAGE_PRECREATE_DB_FETCH_SIZE",     value = "4000" },
+    { name = "BATCH_MONTHLY_USAGE_RESET_LOCK_TTL",              value = "PT1H" },
+    { name = "BATCH_MONTHLY_USAGE_RESET_REDIS_CHUNK_SIZE",      value = "2000" },
+    { name = "BATCH_MONTHLY_USAGE_RESET_DB_FETCH_SIZE",         value = "4000" },
     { name = "BATCH_DB_REDIS_RECONCILIATION_LOCK_TTL",          value = "PT1H" },
-    { name = "BATCH_DB_REDIS_RECONCILIATION_REDIS_CHUNK_SIZE",   value = "2000" },
-    { name = "BATCH_DB_REDIS_RECONCILIATION_DB_FETCH_SIZE",      value = "4000" },
-    # --- Tuning: Usage Event Outbox ---
-    { name = "BATCH_USAGE_EVENT_OUTBOX_BATCH_SIZE",              value = "100" },
-    { name = "BATCH_USAGE_EVENT_OUTBOX_CONCURRENCY",             value = "8" },
-    { name = "BATCH_USAGE_EVENT_OUTBOX_MAX_RETRY",               value = "5" },
-    { name = "BATCH_USAGE_EVENT_OUTBOX_RETRY_INITIAL_DELAY",     value = "PT1M" },
-    { name = "BATCH_USAGE_EVENT_OUTBOX_RETRY_MAX_DELAY",         value = "PT16M" },
+    { name = "BATCH_DB_REDIS_RECONCILIATION_REDIS_CHUNK_SIZE",  value = "2000" },
+    { name = "BATCH_DB_REDIS_RECONCILIATION_DB_FETCH_SIZE",     value = "4000" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_BATCH_SIZE",             value = "100" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_CONCURRENCY",            value = "8" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_MAX_RETRY",              value = "5" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_RETRY_INITIAL_DELAY",    value = "PT1M" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_RETRY_MAX_DELAY",        value = "PT16M" },
     { name = "BATCH_USAGE_EVENT_OUTBOX_RETRY_ELIGIBILITY_DELAY", value = "PT1M" },
-    { name = "BATCH_USAGE_EVENT_OUTBOX_PUBLISH_TIMEOUT",         value = "PT10S" },
-    { name = "BATCH_USAGE_EVENT_OUTBOX_TOPIC",                   value = "notification" },
-  ], local.otel_env_vars)
-
-  secrets = [
-    { name = "DATABASE_PASSWORD",  valueFrom = module.parameter_store.parameter_arns["db_password"] },
-    { name = "JWT_SECRET_KEY",     valueFrom = module.parameter_store.parameter_arns["jwt_secret_key"] },
-    { name = "SLACK_WEBHOOK_URL",  valueFrom = module.parameter_store.parameter_arns["slack_webhook_url"] },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_PUBLISH_TIMEOUT",        value = "PT10S" },
+    { name = "BATCH_USAGE_EVENT_OUTBOX_TOPIC",                  value = "notification" },
   ]
+
+  # 공통값은 Parameter Store에서 주입, batch-core 고유 secrets 추가
+  secrets = concat(
+    local.common_secrets,
+    [
+      { name = "KAFKA_BOOTSTRAP_SERVERS", valueFrom = local.p["kafka_bootstrap_servers"] },
+      { name = "SLACK_WEBHOOK_URL",       valueFrom = local.p["slack_webhook_url"] },
+    ]
+  )
 }
 
 # =============================================================================
