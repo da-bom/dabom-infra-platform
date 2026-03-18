@@ -62,6 +62,9 @@ resource "aws_ecs_service" "this" {
   desired_count   = var.desired_count
   launch_type     = "FARGATE"
 
+  # Spring Boot 기동 시간 동안 ALB health check 실패를 무시 (120초)
+  health_check_grace_period_seconds = var.enable_load_balancer ? 120 : null
+
   network_configuration {
     subnets          = var.subnet_ids
     security_groups  = var.security_group_ids
