@@ -13,6 +13,11 @@ output "tg_api_core_arn" {
   value       = aws_lb_target_group.api_core.arn
 }
 
+output "tg_batch_core_arn" {
+  description = "batch-core 타겟 그룹 ARN - ECS 서비스 연결"
+  value       = aws_lb_target_group.batch_core.arn
+}
+
 output "alb_noti_arn" {
   description = "Noti ALB ARN"
   value       = aws_lb.noti.arn

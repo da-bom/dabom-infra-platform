@@ -258,7 +258,9 @@ module "ecs_service_batch_core" {
   subnet_ids              = local.public_subnet_ids
   security_group_ids      = [local.ecs_sg_id]
   assign_public_ip        = true
-  enable_load_balancer    = false
+  enable_load_balancer    = true
+  target_group_arn        = module.alb.tg_batch_core_arn
+  health_check_path       = "/actuator/health"
   service_discovery_arn   = module.service_discovery.service_arns["batch-core"]
 
   # batch-core 고유값 (BATCH_* 스케줄/튜닝 + Redis 추가설정)

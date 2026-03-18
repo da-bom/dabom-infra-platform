@@ -62,6 +62,43 @@ resource "aws_lb_listener" "api_https" {
   }
 }
 
+# batch-core 타겟 그룹 - api ALB 공유, 호스트 기반 라우팅 (batch.dabom.site)
+resource "aws_lb_target_group" "batch_core" {
+  name        = "${var.project}-tg-batch-core"
+  port        = 8080
+  protocol    = "HTTP"
+  vpc_id      = var.vpc_id
+  target_type = "ip"
+
+  health_check {
+    enabled             = true
+    path                = "/actuator/health"
+    protocol            = "HTTP"
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+    interval            = 30
+    timeout             = 5
+    matcher             = "200"
+  }
+}
+
+# batch.dabom.site → batch-core 타겟 그룹 (호스트 기반 라우팅)
+resource "aws_lb_listener_rule" "batch_core" {
+  listener_arn = aws_lb_listener.api_https.arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.batch_core.arn
+  }
+
+  condition {
+    host_header {
+      values = ["batch.dabom.site"]
+    }
+  }
+}
+
 # ALB Noti - SSE(Server-Sent Events) 장시간 커넥션용 (api-notification 서비스)
 resource "aws_lb" "noti" {
   name               = "${var.project}-alb-noti"

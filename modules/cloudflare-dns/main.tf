@@ -20,6 +20,15 @@ resource "cloudflare_record" "api" {
   proxied = false
 }
 
+# batch.dabom.site → API ALB (batch-core, 호스트 기반 라우팅)
+resource "cloudflare_record" "batch" {
+  zone_id = var.zone_id
+  name    = "batch"
+  content = var.alb_api_dns_name
+  type    = "CNAME"
+  proxied = false
+}
+
 # noti.dabom.site → Noti ALB (SSE 전용)
 # proxied=false: SSE 장기 연결 + CORS 호환성을 위해 DNS Only
 resource "cloudflare_record" "noti" {
