@@ -64,7 +64,7 @@ resource "aws_ecs_service" "this" {
   enable_execute_command = true
 
   # Spring Boot 기동 시간 동안 ALB health check 실패를 무시 (120초)
-  health_check_grace_period_seconds = var.enable_load_balancer ? 120 : null
+  health_check_grace_period_seconds = var.enable_load_balancer ? 180 : null
 
   network_configuration {
     subnets          = var.subnet_ids
