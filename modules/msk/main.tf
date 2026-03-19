@@ -6,6 +6,8 @@ resource "aws_msk_configuration" "this" {
   server_properties = <<-EOT
     # 토픽 자동 생성 - Producer가 메시지 전송 시 토픽이 없으면 자동 생성
     auto.create.topics.enable=true
+    # 기본 파티션 수 - processor-usage 최대 5태스크 병렬 소비 대응
+    num.partitions=24
     # 기본 복제 팩터 - 2개 브로커 환경
     default.replication.factor=2
     # 최소 동기화 복제본 - 데이터 내구성
