@@ -30,16 +30,34 @@ resource "aws_db_parameter_group" "this" {
     name  = "time_zone"
     value = "Asia/Seoul"
   }
+
+  # 커넥션 풀 고갈 방지 - ECS 서비스 최대 11태스크 × HikariCP 10 = 110 + 여유분
+  parameter {
+    name  = "max_connections"
+    value = "150"
+  }
+
+  # ECS 태스크 강제 종료 시 반납되지 않은 좀비 커넥션 자동 정리
+  # 기본값 28800초(8시간) → 300초(5분)로 단축
+  parameter {
+    name  = "wait_timeout"
+    value = "300"
+  }
+
+  parameter {
+    name  = "interactive_timeout"
+    value = "300"
+  }
 }
 
-# RDS MySQL 인스턴스 - 소형 인스턴스 (개발/스테이징 환경)
+# RDS MySQL 인스턴스 - db.t3.small (2GB RAM, max_connections ~166)
 # 프로덕션 전환 시 multi_az=true, 더 큰 인스턴스 클래스 사용 권장
 resource "aws_db_instance" "this" {
   identifier = "${var.project}-rds-mysql"
 
   engine         = "mysql"
   engine_version = "8.0"
-  instance_class = "db.t3.micro"
+  instance_class = "db.t3.small"
 
   allocated_storage     = 20
   storage_type          = "gp3"
