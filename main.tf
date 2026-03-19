@@ -124,8 +124,8 @@ module "ecs_service_api_core" {
   cluster_id              = module.ecs_cluster.cluster_id
   task_execution_role_arn = local.ecs_task_execution_role_arn
   task_role_arn           = local.ecs_task_role_arns["api-core"]
-  cpu                     = 512
-  memory                  = 1024
+  cpu                     = 1024
+  memory                  = 2048
   desired_count           = 1
   container_image         = "${local.ecr_repository_urls["api-core"]}:latest"
   container_port          = 8080
@@ -172,8 +172,8 @@ module "ecs_service_processor_usage" {
   cluster_id              = module.ecs_cluster.cluster_id
   task_execution_role_arn = local.ecs_task_execution_role_arn
   task_role_arn           = local.ecs_task_role_arns["processor-usage"]
-  cpu                     = 256
-  memory                  = 512
+  cpu                     = 512
+  memory                  = 1024
   desired_count           = 2
   container_image         = "${local.ecr_repository_urls["processor-usage"]}:latest"
   container_port          = 8080
@@ -208,8 +208,8 @@ module "ecs_service_api_notification" {
   cluster_id              = module.ecs_cluster.cluster_id
   task_execution_role_arn = local.ecs_task_execution_role_arn
   task_role_arn           = local.ecs_task_role_arns["api-notification"]
-  cpu                     = 512
-  memory                  = 1024
+  cpu                     = 1024
+  memory                  = 2048
   desired_count           = 1
   container_image         = "${local.ecr_repository_urls["api-notification"]}:latest"
   container_port          = 8080
