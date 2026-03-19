@@ -72,6 +72,7 @@ resource "aws_db_instance" "this" {
 
   skip_final_snapshot     = true
   backup_retention_period = 1
+  apply_immediately       = true
 
   db_subnet_group_name   = aws_db_subnet_group.this.name
   vpc_security_group_ids = [var.rds_sg_id]
